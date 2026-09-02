@@ -1,0 +1,122 @@
+# ==============================================================================
+# ENVIRONMENT & SECRETS (NEVER COMMIT THESE)
+# ==============================================================================
+.env
+.env.*
+!.env.example
+!.env.template
+*.env
+*.pem
+*.key
+*.cert
+secrets.json
+
+# =============================================
+# PYTHON & VIRTUAL ENVIRONMENTS
+# =============================================
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+backend/.venv/
+
+# Python bytecode & cache
+__pycache__/
+*/__pycache__/
+**/*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# =============================================
+# NODE & JAVASCRIPT (FRONTEND)
+# =============================================
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vite & Frontend build outputs
+dist/
+frontend/dist/
+dist-ssr/
+frontend/dist-ssr/
+*.local
+
+# =============================================
+# DATABASES & PERSISTENT STORAGE
+# =============================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+skillforge.db
+backend/skillforge.db
+
+# Vector Database (ChromaDB)
+chroma_db/
+backend/chroma_db/
+backend/chroma_data/
+
+# =============================================
+# USER UPLOADS & RESUMES (SENSITIVE USER DATA)
+# =============================================
+uploads/
+backend/uploads/
+!backend/uploads/.gitkeep
+!uploads/.gitkeep
+*.pdf
+*.docx
+*.doc
+
+# =============================================
+# LOGS & DIAGNOSTICS
+# =============================================
+*.log
+backend/*.log
+logs/
+backend/logs/
+
+# =============================================
+# IDE, EDITORS & OS ARTIFACTS
+# =============================================
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+Desktop.ini
