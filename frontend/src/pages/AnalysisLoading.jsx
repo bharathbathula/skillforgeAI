@@ -4,15 +4,16 @@ import { analysisService } from '../services/api';
 import { CheckCircle2, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 
 const STEPS = [
-  'Resume Uploaded & Validated',
-  'Technical Tokenization & Skill Taxonomy Extraction',
-  'Deterministic Arithmetic & Experience Ratio Calculation',
-  'Individual Responsibility Match & Evidence Search',
-  'Google Gemini 1.5 Multi-dimensional Analysis',
-  'OpenAI GPT-4o Multi-dimensional Analysis',
-  'Anthropic Claude 3.5 Multi-dimensional Analysis',
-  'Consensus Ensemble & ATS Report Generation'
+  'Validating Resume & Target Job Description',
+  'Parsing Structured Information & Technical Taxonomy',
+  'Calculating Chronological Experience & Overlap Reconciliation',
+  'Evaluating Responsibility Alignment & Evidence Matching',
+  'Analyzing Keyword Coverage & ATS Readability',
+  'Generating Pretrained Semantic Embeddings (all-MiniLM-L6-v2)',
+  'Computing Grounded ATS Compatibility Score',
+  'Assembling Actionable Recommendations & Project Ideas'
 ];
+
 
 export const AnalysisLoading = () => {
   const { id } = useParams(); // resumeId

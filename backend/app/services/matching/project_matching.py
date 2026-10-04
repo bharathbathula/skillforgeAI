@@ -1,12 +1,13 @@
 from typing import Dict, Any, List
 from app.services.embeddings.embedding_service import EmbeddingService
+from app.services.nlp.technical_tokenizer import TechnicalTokenizer
 
 class ProjectMatchingService:
     @staticmethod
     def analyze_projects(candidate_projects: List[Any], job_parsed: Dict[str, Any]) -> Dict[str, Any]:
         """
         Compare each candidate project against job description responsibilities & skills.
-        Calculates project relevance score for each project and an overall project score.
+        Calculates grounded project relevance based on actual technology overlap and semantic similarity.
         """
         if not candidate_projects:
             return {
@@ -14,8 +15,23 @@ class ProjectMatchingService:
                 "project_evaluations": []
             }
 
-        job_resps = " ".join(job_parsed.get("responsibilities", []))
-        job_skills = job_parsed.get("skills", {}).get("required_skills", []) + job_parsed.get("skills", {}).get("preferred_skills", [])
+        job_resps = job_parsed.get("responsibilities", [])
+        if isinstance(job_resps, list):
+            job_resps_text = " ".join(job_resps)
+        else:
+            job_resps_text = str(job_resps)
+
+        skills_dict = job_parsed.get("skills", {})
+        if isinstance(skills_dict, dict):
+            req_skills = skills_dict.get("required_skills", [])
+            pref_skills = skills_dict.get("preferred_skills", [])
+            job_skills = list(req_skills) + list(pref_skills)
+        elif isinstance(skills_dict, list):
+            job_skills = list(skills_dict)
+        else:
+            job_skills = []
+
+        norm_job_skills = {TechnicalTokenizer.normalize_skill(s): s for s in job_skills}
 
         project_evals = []
         total_relevance = 0.0
@@ -29,43 +45,58 @@ class ProjectMatchingService:
             elif isinstance(proj, dict):
                 pname = proj.get("name", "Project")
                 pdesc = proj.get("description", "")
-                presps = " ".join(proj.get("responsibilities", [])) if isinstance(proj.get("responsibilities"), list) else str(proj.get("responsibilities", ""))
+                raw_resps = proj.get("responsibilities", [])
+                presps = " ".join(raw_resps) if isinstance(raw_resps, list) else str(raw_resps)
                 ptechs = proj.get("technologies", [])
                 if not isinstance(ptechs, list):
                     ptechs = [str(ptechs)]
             else:
                 continue
 
-            proj_text = f"{pname} {pdesc} {presps} {' '.join(ptechs)}"
-            sim = EmbeddingService.compute_similarity(proj_text, job_resps)
+            proj_text = f"{pname} {pdesc} {presps} {' '.join(ptechs)}".strip()
+            if not proj_text:
+                continue
 
-            # Detect any job skills mentioned anywhere in project text if ptechs is sparse
-            all_detected_techs = list(ptechs)
-            for js in job_skills:
-                if js.lower() in proj_text.lower() and js not in all_detected_techs:
-                    all_detected_techs.append(js)
+            # Semantic similarity to job requirements
+            sim = EmbeddingService.compute_similarity(proj_text, job_resps_text) if job_resps_text else 0.5
 
-            # Matched & missing technologies
-            matched_techs = [t for t in all_detected_techs if any(t.lower() in js.lower() or js.lower() in t.lower() for js in job_skills)]
-            missing_techs = [js for js in job_skills[:5] if not any(js.lower() in t.lower() for t in all_detected_techs)]
+            # Detect genuine project technologies matching JD skills
+            matched_techs = []
+            proj_tokens = [t.lower() for t in TechnicalTokenizer.tokenize_preserve_tech(proj_text)]
+            proj_tokens_set = set(proj_tokens)
 
-            # Relevance calculation: Base embedding similarity + tech match boost
+            for norm_js, orig_js in norm_job_skills.items():
+                if norm_js in proj_tokens_set or orig_js.lower() in proj_tokens_set:
+                    matched_techs.append(orig_js)
+                elif any(TechnicalTokenizer.normalize_skill(t) == norm_js for t in ptechs):
+                    matched_techs.append(orig_js)
+
+            matched_techs = sorted(list(set(matched_techs)))
+            missing_techs = [orig_js for norm_js, orig_js in norm_job_skills.items() if orig_js not in matched_techs][:4]
+
+            # Grounded relevance calculation
             tech_match_ratio = (len(matched_techs) / len(job_skills)) if job_skills else 0.5
             relevance = (sim * 0.5 + tech_match_ratio * 0.5) * 100.0
-            relevance = max(45.0, min(98.0, round(relevance, 1)))
-
+            relevance = round(max(0.0, min(100.0, relevance)), 1)
             total_relevance += relevance
+
+            # Check matching responsibilities
+            matched_responsibilities = []
+            if isinstance(job_resps, list):
+                for jr in job_resps[:4]:
+                    resp_sim = EmbeddingService.compute_similarity(proj_text, jr)
+                    if resp_sim >= 0.55:
+                        matched_responsibilities.append(jr[:90])
 
             project_evals.append({
                 "name": pname,
                 "relevance_percentage": relevance,
-                "matched_technologies": matched_techs if matched_techs else (all_detected_techs[:3] if all_detected_techs else ["Python", "API"]),
-                "matched_responsibilities": ["REST API development", "System integration"] if "api" in proj_text.lower() else ["Software implementation & development"],
-                "missing_technologies": missing_techs[:3]
+                "matched_technologies": matched_techs,
+                "matched_responsibilities": matched_responsibilities,
+                "missing_technologies": missing_techs
             })
 
-        avg_score = (total_relevance / len(project_evals)) if project_evals else 65.0
-        avg_score = round(max(0.0, min(100.0, avg_score)), 1)
+        avg_score = round(total_relevance / len(project_evals), 1) if project_evals else 0.0
 
         return {
             "project_score": avg_score,

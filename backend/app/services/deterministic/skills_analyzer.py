@@ -70,6 +70,16 @@ class SkillsAnalyzer:
         partial_skills = [e for e in all_evals if e["status"] == "Partial / Semantic Match"]
         missing_skills = [e["skill"] for e in all_evals if e["status"] == "Missing"]
 
+        skill_matches = [
+            {
+                "skill": e["skill"],
+                "match_type": e["status"],
+                "similarity_score": e.get("match_score", 0.0),
+                "importance": e.get("importance", "Required")
+            }
+            for e in all_evals
+        ]
+
         return {
             "skill_score": final_skill_score,
             "required_skills_score": round(req_score, 1),
@@ -77,6 +87,7 @@ class SkillsAnalyzer:
             "matched_skills": sorted(list(set(matched_skills))),
             "missing_skills": sorted(list(set(missing_skills))),
             "partial_skills": partial_skills,
+            "skill_matches": skill_matches,
             "required_skills_breakdown": req_evals,
             "preferred_skills_breakdown": pref_evals,
             "optional_skills_breakdown": opt_evals,
@@ -84,6 +95,7 @@ class SkillsAnalyzer:
             "matched_count": len(matched_skills),
             "missing_count": len(missing_skills)
         }
+
 
     @classmethod
     def extract_job_skills(cls, parsed_job: Dict[str, Any], raw_jd: str) -> Tuple[List[str], List[str], List[str]]:
@@ -144,21 +156,33 @@ class SkillsAnalyzer:
                 })
                 continue
 
-            # 2. Substring or Semantic Match
+            # 2. Semantic Similarity Match (Guarded against false positives like Java vs JavaScript)
             best_match = None
             best_sim = 0.0
+
+            # Distinct technology boundaries that must never be considered related matches
+            INCOMPATIBLE_PAIRS = {
+                "java": {"javascript"},
+                "javascript": {"java"},
+                "c": {"c++", "c#", "css"},
+                "c++": {"c", "c#", "css"},
+                "c#": {"c", "c++", "css"},
+                "r": {"react", "ruby", "rust", "redis"},
+                "go": {"django"},
+            }
+
             for c_norm, c_orig in cand_normalized.items():
-                if norm_s in c_norm or c_norm in norm_s:
-                    best_sim = 0.85
-                    best_match = c_orig
-                    break
-                
+                if norm_s in INCOMPATIBLE_PAIRS and c_norm in INCOMPATIBLE_PAIRS[norm_s]:
+                    continue
+                if c_norm in INCOMPATIBLE_PAIRS and norm_s in INCOMPATIBLE_PAIRS[c_norm]:
+                    continue
+
                 sim = EmbeddingService.compute_similarity(norm_s, c_norm)
-                if sim > best_sim and sim >= 0.70:
+                if sim > best_sim and sim >= 0.75:
                     best_sim = sim
                     best_match = c_orig
 
-            if best_sim >= 0.70 and best_match:
+            if best_sim >= 0.75 and best_match:
                 earned = imp_multiplier * best_sim
                 earned_weight += earned
                 evaluations.append({
@@ -178,5 +202,6 @@ class SkillsAnalyzer:
                     "evidence_snippet": "No direct or related skill evidence in resume",
                     "match_score": 0.0
                 })
+
 
         return evaluations, earned_weight, total_weight

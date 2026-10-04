@@ -131,6 +131,36 @@ class SkillTaxonomy:
         return sorted(list(set(all_skills)))
 
     @classmethod
+    def _text_contains_skill(cls, text: str, skill: str, skill_norm: str) -> bool:
+        """Checks if text contains the skill with strict boundary validation, preventing false positives like Java vs JavaScript."""
+        if not text or not skill:
+            return False
+        t_low = text.lower()
+        s_low = skill.lower()
+
+        # Explicitly guard Java from matching inside JavaScript / JS
+        if s_low == "java":
+            t_without_js = t_low.replace("javascript", " ").replace("js", " ")
+            return bool(re.search(r'\bjava\b', t_without_js))
+
+        # Distinct C language boundary (don't match inside C++, C#, CSS)
+        if s_low == "c":
+            t_clean = re.sub(r'c\+\+|c\#|css', ' ', t_low)
+            return bool(re.search(r'\bc\b', t_clean))
+
+        # Standard word boundary regex handling symbols like C++, C#, .NET
+        pattern = r'(?:\b|(?<=[\s,;:(/]))' + re.escape(s_low) + r'(?:\b|(?=[\s,;:)/.]))'
+        if re.search(pattern, t_low):
+            return True
+
+        if skill_norm and skill_norm != s_low:
+            pattern_norm = r'(?:\b|(?<=[\s,;:(/]))' + re.escape(skill_norm) + r'(?:\b|(?=[\s,;:)/.]))'
+            if re.search(pattern_norm, t_low):
+                return True
+
+        return False
+
+    @classmethod
     def analyze_skill_evidence(cls, skill: str, resume_parsed: Dict[str, Any], raw_resume: str) -> Dict[str, Any]:
         """
         Determines evidence level for a specific skill in candidate resume:
@@ -140,7 +170,6 @@ class SkillTaxonomy:
         - not_found: Absent
         """
         skill_norm = TechnicalTokenizer.normalize_skill(skill)
-        skill_lower = skill.lower()
 
         # Check work experience
         exp_list = resume_parsed.get("experience", [])
@@ -151,7 +180,7 @@ class SkillTaxonomy:
             elif isinstance(exp, str):
                 exp_text = exp
 
-            if skill_lower in exp_text.lower() or skill_norm in exp_text.lower():
+            if cls._text_contains_skill(exp_text, skill, skill_norm):
                 return {
                     "level": "demonstrated_work",
                     "label": "Professional Work Experience",
@@ -168,7 +197,7 @@ class SkillTaxonomy:
             elif isinstance(proj, str):
                 proj_text = proj
 
-            if skill_lower in proj_text.lower() or skill_norm in proj_text.lower():
+            if cls._text_contains_skill(proj_text, skill, skill_norm):
                 return {
                     "level": "demonstrated_project",
                     "label": "Project Implementation",
@@ -176,10 +205,10 @@ class SkillTaxonomy:
                     "evidence": proj_text[:120].strip()
                 }
 
-        # Check skills section
+        # Check skills section & raw resume text
         skills_data = resume_parsed.get("skills", {})
-        skills_text = str(skills_data).lower()
-        if skill_lower in skills_text or skill_norm in skills_text or skill_lower in raw_resume.lower():
+        skills_text = str(skills_data)
+        if cls._text_contains_skill(skills_text, skill, skill_norm) or cls._text_contains_skill(raw_resume, skill, skill_norm):
             return {
                 "level": "mentioned",
                 "label": "Listed in Skills",
@@ -193,6 +222,7 @@ class SkillTaxonomy:
             "weight_multiplier": 0.0,
             "evidence": "No evidence found in resume"
         }
+
 
     @staticmethod
     def _format_skill_name(skill: str) -> str:

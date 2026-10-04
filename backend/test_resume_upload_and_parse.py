@@ -95,8 +95,20 @@ def test_full_flow():
 
     # Print detected skills if parsed
     if resume.get("parsed_content") and resume["parsed_content"].get("skills"):
-        skills = resume["parsed_content"]["skills"]
-        print(f"  Detected skills: {', '.join(skills[:8])}{'...' if len(skills) > 8 else ''}")
+        skills_obj = resume["parsed_content"]["skills"]
+        if isinstance(skills_obj, dict):
+            flat_skills = []
+            for v in skills_obj.values():
+                if isinstance(v, list):
+                    flat_skills.extend([str(x) for x in v])
+                elif isinstance(v, str):
+                    flat_skills.append(v)
+        elif isinstance(skills_obj, list):
+            flat_skills = [str(x) for x in skills_obj]
+        else:
+            flat_skills = [str(skills_obj)]
+        print(f"  Detected skills: {', '.join(flat_skills[:8])}{'...' if len(flat_skills) > 8 else ''}")
+
 
     print("\n6. Testing Duplicate Resume Detection...")
     with open(sample_docx_path, "rb") as f:
